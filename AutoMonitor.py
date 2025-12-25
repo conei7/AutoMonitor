@@ -216,7 +216,7 @@ def monitor_scripts() -> None:
                         pass
 
 # GitHubのrawファイルURLを生成（堅牢版）
-def get_github_raw_url(github_path: str, local_path: str) -> Optional[str]:
+def get_github_raw_url(github_path: str, local_path: str, github_file_path: str = None) -> Optional[str]:
     """
     GitHubリポジトリURLからrawファイルURLを生成
     対応形式:
@@ -240,8 +240,12 @@ def get_github_raw_url(github_path: str, local_path: str) -> Optional[str]:
         m = re.match(pattern, cleaned_path)
         if m:
             user, repo = m.group(1), m.group(2)
-            filename = os.path.basename(local_path)
-            return f"https://raw.githubusercontent.com/{user}/{repo}/main/{filename}"
+            # github_file_pathがあればそれを使用、なければlocal_pathのbasenameを使用
+            if github_file_path:
+                file_path = github_file_path
+            else:
+                file_path = os.path.basename(local_path)
+            return f"https://raw.githubusercontent.com/{user}/{repo}/main/{file_path}"
     
     return None
 
@@ -451,7 +455,7 @@ class Main(commands.Cog):
 
                     # パス設定
                     local_path = p["local_path"]
-                    github_url = get_github_raw_url(p["github_path"], p["local_path"])
+                    github_url = get_github_raw_url(p["github_path"], p["local_path"], p.get("github_file_path"))
 
                     # GitHub URLが生成できなかった場合
                     if not github_url:

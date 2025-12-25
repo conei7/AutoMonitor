@@ -9,6 +9,7 @@ import threading
 import time
 import traceback
 import urllib.request
+import psutil
 from difflib import unified_diff
 from urllib.request import urlopen
 from logging.handlers import RotatingFileHandler
@@ -159,6 +160,27 @@ def update_libraries() -> None:
         for library in project.get("libraries", []):
             subprocess.run(["pip", "install", "--upgrade", library], check=True)
 
+def kill_existing_process(script_path: str) -> None:
+    """同じスクリプトを実行している既存プロセスを全てkill"""
+    script_name = os.path.basename(script_path)
+    current_pid = os.getpid()
+    
+    for proc in psutil.process_iter(['pid', 'name', 'cmdline']):
+        try:
+            if proc.pid == current_pid:
+                continue
+            cmdline = proc.info.get('cmdline') or []
+            # コマンドラインにスクリプト名が含まれているか確認
+            if any(script_name in str(arg) for arg in cmdline):
+                logging.info(f"既存プロセスを終了: PID={proc.pid}, cmdline={cmdline}")
+                proc.terminate()
+                try:
+                    proc.wait(timeout=5)
+                except psutil.TimeoutExpired:
+                    proc.kill()
+        except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
+            pass
+
 def monitor_scripts() -> None:
     processes: Dict[str, Optional[subprocess.Popen]] = {project["name"]: None for project in PROJECTS}
     # 各プロセスの最後の再起動時間を記録（レート制限防止用）
@@ -184,7 +206,9 @@ def monitor_scripts() -> None:
                         logging.info(f"{name}: 再起動待機中... あと {wait_time:.1f}秒")
                         time.sleep(wait_time)
                     
-                    # 既存のプロセスが残っていれば確実に終了させる
+                    # 既存のプロセスが残っていれば確実に終了させる（システム全体で）
+                    kill_existing_process(path)
+                    
                     if processes[name] is not None:
                         try:
                             processes[name].terminate()

@@ -172,7 +172,7 @@ class Supervisor:
                 await self.command([str(python), "-m", "pip", "install", "-r", str(requirements)], timeout=900)
             packages = extra_packages if extra_packages is not None else recipe.get("packages", [])
             if packages:
-                await self.command([str(python), "-m", "pip", "install", *packages], timeout=900)
+                await self.command([str(python), "-m", "pip", "install", "--upgrade", *packages], timeout=900)
             await self.command([str(python), "-m", "pip", "check"])
             await self.command([str(python), "-m", "py_compile", str(repo / recipe["entrypoint"])])
             (release / "dependencies.txt").write_text(await self.command([str(python), "-m", "pip", "freeze"]), encoding="utf-8")
@@ -292,11 +292,17 @@ class Supervisor:
             r = copy.deepcopy(p["recipe"])
             if packages is not None: r["packages"] = packages
             active = p.get("active")
+            tracking_ref = r.get("ref", "")
             if pinned_release:
                 # A dependency upgrade keeps the currently deployed commit.
                 r["ref"] = read_json(Path(pinned_release) / "release.json")["commit"]
             try:
                 candidate = await self.prepare(r)
+                r["ref"] = tracking_ref
+                metadata = read_json(Path(candidate) / "release.json", {})
+                if metadata:
+                    metadata["recipe"] = r
+                    write_json(Path(candidate) / "release.json", metadata)
             except Exception as e:
                 p["error"] = self.clean(str(e)); self.save(); raise
             enabled = p["enabled"] if start is None else start

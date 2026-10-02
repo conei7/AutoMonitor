@@ -50,7 +50,9 @@ async def serve():
         try:
             raw = await asyncio.wait_for(reader.readline(), 15)
             if len(raw) > 1024*1024: raise ValueError("入力が大きすぎます")
-            response = {"ok": True, "result": await engine.dispatch(**json.loads(raw))}
+            request = json.loads(raw)
+            result = await self_update() if request.get("action") == "self_update" else await engine.dispatch(**request)
+            response = {"ok": True, "result": result}
         except Exception as e: response = {"ok": False, "error": engine.clean(str(e))}
         writer.write(json.dumps(response, ensure_ascii=False).encode() + b"\n")
         await writer.drain(); writer.close(); await writer.wait_closed()

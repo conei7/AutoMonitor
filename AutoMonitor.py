@@ -225,8 +225,8 @@ async def serve():
     finally:
         if bot: await bot.close()
         gateway.cancel(); monitor.cancel(); stopped.cancel()
-        with contextlib.suppress(asyncio.CancelledError): await gateway
-        with contextlib.suppress(asyncio.CancelledError): await monitor
+        with contextlib.suppress(asyncio.CancelledError, Exception): await gateway
+        with contextlib.suppress(asyncio.CancelledError, Exception): await monitor
         await engine.close(); server.close(); await server.wait_closed()
         with contextlib.suppress(FileNotFoundError): socket.unlink()
         lockfile.close()

@@ -99,6 +99,7 @@ class Supervisor:
         self.failures = {}
         self.log_handles = {}
         self.closing = False
+        self.discord_state = "not_connected"
 
     def save(self):
         write_json(self.state_path, self.state)
@@ -248,7 +249,9 @@ class Supervisor:
         self.attach_data(name, release, r)
         env = os.environ.copy()
         env.update({str(k): str(v) for k, v in read_json(self.base(name) / "private" / "secrets.json", {}).get("env", {}).items()})
-        env.update(PYTHONUNBUFFERED="1", SBC_MANAGED="1")
+        ready = self.base(name) / "ready.json"
+        with contextlib.suppress(FileNotFoundError): ready.unlink()
+        env.update(PYTHONUNBUFFERED="1", SBC_MANAGED="1", SBC_READY_FILE=str(ready))
         logfile = self.base(name) / "bot.log"
         if logfile.exists() and logfile.stat().st_size > 5 * 1024 * 1024:
             logfile.replace(logfile.with_suffix(".log.1"))
@@ -342,12 +345,14 @@ class Supervisor:
             proc = self.processes.get(n)
             active = p.get("active")
             release = read_json(Path(active) / "release.json", {}) if active else {}
+            running = bool(proc and proc.poll() is None)
+            ready = read_json(self.home / "bots" / n / "ready.json", {}) if running else {}
             result.append({"name": n, "registered": not p.get("unregistered", False), "enabled": p["enabled"],
-                "process": "running" if proc and proc.poll() is None else "stopped", "discord": "not_verified",
+                "process": "running" if running else "stopped", "discord": "connected" if ready else "not_verified",
                 "pid": proc.pid if proc and proc.poll() is None else None, "commit": release.get("commit"),
                 "error": self.clean(p.get("error", ""))})
         if name and not result: raise ValueError("登録されていないbotです")
-        return result
+        return result if name else {"manager": {"process": "running", "discord": self.discord_state}, "bots": result}
 
     def logs(self, name=None):
         path = self.base(name) / "bot.log" if name else self.home / "manager.log"

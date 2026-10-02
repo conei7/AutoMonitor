@@ -195,7 +195,10 @@ async def serve():
             await self.add_cog(cog)
             guild = discord.Object(id=engine.config["GUILD_ID"])
             self.tree.copy_global_to(guild=guild); await self.tree.sync(guild=guild)
-        async def on_ready(self): logging.info("Manager Discord ready: %s", self.user.id)
+        async def on_ready(self):
+            engine.discord_state = "connected"
+            logging.info("Manager Discord ready: %s", self.user.id)
+        async def on_disconnect(self): engine.discord_state = "disconnected"
     bot = None
     async def connect_discord():
         nonlocal bot
@@ -204,6 +207,7 @@ async def serve():
             try:
                 await bot.start(engine.config["TOKEN"])
             except (discord.LoginFailure, discord.HTTPException, OSError) as e:
+                engine.discord_state = "credentials_invalid" if isinstance(e, discord.LoginFailure) else "disconnected"
                 logging.error("Discord unavailable; local bot control remains available: %s", e)
             finally:
                 await bot.close()

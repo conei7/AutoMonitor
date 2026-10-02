@@ -65,7 +65,7 @@ def validate_recipe(recipe: dict) -> dict:
 
 def redact(value, secrets=()):
     if isinstance(value, dict):
-        return {k: "***" if any(s in k.lower() for s in ("token", "password", "secret", "private_key")) else redact(v, secrets) for k, v in value.items()}
+        return {k: "***" if not isinstance(v, (dict, list)) and any(s in k.lower() for s in ("token", "password", "secret", "private_key")) else redact(v, secrets) for k, v in value.items()}
     if isinstance(value, list):
         return [redact(v, secrets) for v in value]
     if isinstance(value, str):

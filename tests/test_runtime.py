@@ -31,6 +31,13 @@ class RuntimeTests(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn("private-value", json.dumps(redacted))
         self.assertEqual(merge_redacted(old, redacted), old)
 
+    def test_bot_config_keeps_secret_container_editable(self):
+        config = {"secrets": {"env": {"DISCORD_BOT_TOKEN": "private-value-123456"}, "files": {"config.json": {"bot_token": "private-value-123456", "admin_users": [7]}}}}
+        public = redact(config)
+        self.assertIsInstance(public["secrets"], dict)
+        self.assertEqual(public["secrets"]["env"]["DISCORD_BOT_TOKEN"], "***")
+        self.assertEqual(merge_redacted(config, public), config)
+
     async def test_start_is_idempotent(self):
         self.engine.attach_data = mock.Mock()
         proc = mock.Mock(); proc.poll.return_value = None

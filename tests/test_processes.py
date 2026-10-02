@@ -5,6 +5,7 @@ from pathlib import Path
 import sys
 import tempfile
 import unittest
+import subprocess
 
 from runtime import Supervisor, validate_recipe, write_json
 
@@ -56,5 +57,22 @@ class ProcessTests(unittest.IsolatedAsyncioTestCase):
         await self.engine.stop('fixture');await asyncio.sleep(0.1)
         stat=Path(f'/proc/{helper}/stat')
         self.assertTrue(not stat.exists() or stat.read_text().split()[2]=='Z')
+
+    async def test_release_python_is_independent_of_manager_symlink(self):
+        source=self.engine.home/'source';source.mkdir()
+        (source/'bot.py').write_text('print("ok")\n')
+        subprocess.run(['git','init','-q',str(source)],check=True)
+        subprocess.run(['git','add','bot.py'],cwd=source,check=True)
+        subprocess.run(['git','-c','user.name=Test','-c','user.email=test@localhost','commit','-qm','fixture'],cwd=source,check=True)
+        recipe=validate_recipe({'name':'independent','repository':str(source),'local_source':True,'entrypoint':'bot.py'})
+        original=self.engine.command
+        async def offline(args,**kwargs):
+            if 'pip' in args and 'install' in args:return ''
+            return await original(args,**kwargs)
+        self.engine.command=offline
+        release=Path(await self.engine.prepare(recipe))
+        self.assertFalse((release/'.venv/bin/python').is_symlink())
+        prefix=subprocess.check_output([str(release/'.venv/bin/python'),'-c','import sys;print(sys.prefix)'],text=True).strip()
+        self.assertEqual(prefix,str(release/'.venv'))
 
 if __name__=='__main__':unittest.main()

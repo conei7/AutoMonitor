@@ -164,7 +164,8 @@ class Supervisor:
             commit = (await self.command(["git", "rev-parse", "HEAD"], cwd=repo)).strip()
             if not (repo / recipe["entrypoint"]).is_file():
                 raise ValueError("起動ファイルが見つかりません")
-            await self.command([sys.executable, "-m", "venv", str(release / ".venv")])
+            base_python = Path("/usr/bin/python3" if os.name == "posix" else sys._base_executable).resolve()
+            await self.command([str(base_python), "-m", "venv", "--copies", str(release / ".venv")])
             python = release / ".venv" / ("Scripts/python.exe" if os.name == "nt" else "bin/python")
             await self.command([str(python), "-m", "pip", "install", "--upgrade", "pip"], timeout=300)
             requirements = repo / recipe["requirements"]

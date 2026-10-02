@@ -47,4 +47,14 @@ class ProcessTests(unittest.IsolatedAsyncioTestCase):
         await self.engine.monitor_one('fixture')
         self.assertNotEqual(old.pid,new.pid);self.assertIs(new,self.engine.processes['fixture'])
 
+    async def test_stop_terminates_helper_after_parent_exits(self):
+        release=Path(self.engine.project('fixture')['active'])
+        (release/'repo/bot.py').write_text('import subprocess,sys\np=subprocess.Popen([sys.executable,"-c","import time;time.sleep(120)"])\nprint(p.pid,flush=True)\n')
+        await self.engine.start('fixture')
+        proc=self.engine.processes['fixture'];await asyncio.to_thread(proc.wait)
+        helper=int((self.engine.base('fixture')/'bot.log').read_text().strip())
+        await self.engine.stop('fixture');await asyncio.sleep(0.1)
+        stat=Path(f'/proc/{helper}/stat')
+        self.assertTrue(not stat.exists() or stat.read_text().split()[2]=='Z')
+
 if __name__=='__main__':unittest.main()

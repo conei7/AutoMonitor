@@ -225,16 +225,19 @@ class Supervisor:
 
     async def _stop(self, name):
         proc = self.processes.pop(name, None)
-        if proc and proc.poll() is None:
+        if proc:
             if os.name == "posix":
                 with contextlib.suppress(ProcessLookupError): os.killpg(proc.pid, signal.SIGTERM)
-            else: proc.terminate()
+            elif proc.poll() is None: proc.terminate()
             try: await asyncio.to_thread(proc.wait, timeout=10)
             except subprocess.TimeoutExpired:
                 if os.name == "posix":
                     with contextlib.suppress(ProcessLookupError): os.killpg(proc.pid, signal.SIGKILL)
                 else: proc.kill()
                 await asyncio.to_thread(proc.wait)
+            if os.name == "posix":
+                # Reap helpers such as ffmpeg even when the bot exited first.
+                with contextlib.suppress(ProcessLookupError): os.killpg(proc.pid, signal.SIGKILL)
         handle = self.log_handles.pop(name, None)
         if handle: handle.close()
 
